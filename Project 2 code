@@ -1,0 +1,121 @@
+### import pandas as pd###
+import pandas as pd
+import sqlite3
+from datetime import datetime
+
+# Error handling for reading CSV file
+try:
+    csv_file_path = 'drinks.csv'
+    df = pd.read_csv(csv_file_path)
+except FileNotFoundError:
+    print(f"Error: File '{csv_file_path}' not found.")
+    exit(1)
+except pd.errors.ParserError:
+    print(f"Error: Unable to parse CSV file '{csv_file_path}'.")
+    exit(1)
+
+# Error handling for SQLite connection
+try:
+    db_file_path = 'your_database.db'
+    conn = sqlite3.connect(db_file_path)
+except sqlite3.Error as e:
+    print(f"Error connecting to SQLite database: {e}")
+    exit(1)
+
+# Create Ratings table if it doesn't exist
+cursor = conn.cursor()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Ratings (
+        drink_name TEXT,
+        rating INTEGER
+    )
+""")
+
+# Read CSV file into a DataFrame
+table_name = 'DRINK_Table'
+df.to_sql(table_name, conn, if_exists='replace', index=False)
+
+# Welcome message
+print("Welcome to the Drink Recommendation App!")
+print("Please answer the following questions to help us recommend drinks for you.")
+
+# Validate Date of Birth input
+while True:
+    dob_str = input("Enter your date of birth (YYYY-MM-DD): ")
+    try:
+        dob = datetime.strptime(dob_str, '%Y-%m-%d')
+        age = datetime.now().year - dob.year
+        if age < 21:
+            print("You must be at least 21 years old to use this app.")
+        else:
+            break
+    except ValueError:
+        print("Invalid date format. Please enter your date of birth in YYYY-MM-DD format.")
+
+# Ask for drink type input
+while True:
+    drink_type = input("What type of drink do you prefer? (e.g., Lager, Ale, Stout): ").strip()
+    if drink_type :
+        break
+    else:
+        print("Please enter a valid drink type.")
+print(drink_type)
+# Validate ABV input
+while True:
+    try:
+        min_abv = float(input("What is the minimum ABV you prefer? (Enter as a decimal): "))
+        if min_abv < 0 or min_abv > 100:
+            print("Please enter a valid ABV between 0 and 100.")
+        else:
+            break
+    except ValueError:
+        print("Please enter a valid decimal number for ABV.")
+
+# Validate state abbreviation input
+valid_states = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+                'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+                'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+                'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+                'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']  # List all valid state abbreviations
+while True:
+    location_state = input("What state are you from? (Enter state abbreviation): ").upper()
+    if location_state in valid_states:
+        break
+    else:
+        print("Invalid state abbreviation. Please enter a valid state abbreviation.")
+
+# Recommendation code (including specified styles)
+cursor.execute("SELECT drink, style, abv, state FROM DRINK_Table WHERE style= ? AND abv >= ? AND state= ? COLLATE NOCASE", (drink_type, min_abv, location_state))
+matching_drinks = cursor.fetchall()
+print(matching_drinks)
+# Display recommendations
+if matching_drinks:
+    print("\nRecommended Drinks:")
+    for drink in matching_drinks:
+        abv_str = f"{drink[2]}%" if drink[2] is not None else "Unknown"
+        print(f"- {drink[0]} (style: {drink[1]}, abv: {abv_str}, Location: {drink[3]})")
+
+        # Ask if the user has tried the drink
+        tried_drink = input("Have you tried this drink? (Y/N): ").strip().upper()
+        if tried_drink == 'Y':
+            taste_comment = input("Please comment on the taste: ")
+            while True:
+                try:
+                    rating = int(input("Rate this drink on a scale of 1-5: "))
+                    if rating < 1 or rating > 5:
+                        print("Please enter a rating between 1 and 5.")
+                    else:
+                        break
+                except ValueError:
+                    print("Please enter a valid integer rating.")
+                     
+        elif tried_drink == 'N':
+            continue
+        else:
+            print("Invalid input. Please enter Y or N1")
+
+else:
+    print("No drinks matching your criteria were found.")   
+# Close connection#
+conn.close()
+print(f"\nData from '{csv_file_path}' has been successfully imported into the '{table_name}' table in '{db_file_path}'.")
